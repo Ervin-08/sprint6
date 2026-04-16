@@ -1,0 +1,775 @@
+/* ============================================================
+   BOUTIQUE PARFUMS — Feuille de style
+   Style : classique, noir & blanc, minimaliste
+   Sprint 2 — Page produits + fiche produit dynamiques
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500&display=swap');
+
+/* ─── Reset & base ─────────────────────────── */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    font-size: 16px;
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    color: #111;
+    background-color: #fff;
+    line-height: 1.7;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ─── Typographie ───────────────────────────── */
+h1, h2, h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+}
+
+h1 { font-size: 1.6rem; }
+h2 { font-size: 2rem; margin-bottom: 2.5rem; }
+h3 { font-size: 1.3rem; margin-bottom: 0.5rem; }
+
+p { margin-bottom: 0.5rem; }
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* ─── Header ────────────────────────────────── */
+header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.5rem 4rem;
+    border-bottom: 1px solid #111;
+    position: sticky;
+    top: 0;
+    background-color: #fff;
+    z-index: 100;
+}
+
+header h1 {
+    font-size: 1.4rem;
+    font-weight: 300;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+header nav a {
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    border-bottom: 1px solid transparent;
+    padding-bottom: 2px;
+    transition: border-color 0.25s ease;
+}
+
+header nav a:hover {
+    border-bottom-color: #111;
+}
+
+/* ─── Main ───────────────────────────────────── */
+main {
+    flex: 1;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 4rem 2rem;
+}
+
+/* ─── Lien retour ────────────────────────────── */
+.lien-retour {
+    display: inline-block;
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-bottom: 1px solid transparent;
+    padding-bottom: 2px;
+    margin-bottom: 2.5rem;
+    transition: border-color 0.25s ease;
+}
+
+.lien-retour:hover {
+    border-bottom-color: #111;
+}
+
+/* ─── Messages (erreur / avertissement) ─────── */
+.message {
+    padding: 1rem 1.4rem;
+    font-size: 0.9rem;
+    letter-spacing: 0.03em;
+    margin-bottom: 2rem;
+    border-left: 3px solid transparent;
+}
+
+.message--erreur {
+    border-left-color: #c00;
+    background-color: #fff5f5;
+    color: #c00;
+}
+
+.message--avertissement {
+    border-left-color: #e67e00;
+    background-color: #fffbf0;
+    color: #7a4200;
+}
+
+/* ─── Formulaire de filtres (SHOULD) ────────── */
+.filtres-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+    padding: 1.5rem;
+    border: 1px solid #e0e0e0;
+}
+
+.filtres-fieldset {
+    border: none;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.filtres-legend {
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 0.6rem;
+    display: block;
+    width: 100%;
+}
+
+.filtre-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+
+.filtre-checkbox input[type="checkbox"] {
+    accent-color: #111;
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+}
+
+.filtre-select-label {
+    font-size: 0.82rem;
+    color: #555;
+}
+
+.filtre-select {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 300;
+    border: 1px solid #ccc;
+    padding: 0.4rem 0.7rem;
+    background-color: #fff;
+    cursor: pointer;
+}
+
+.filtres-btn-appliquer {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 400;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    background-color: #111;
+    color: #fff;
+    border: 1px solid #111;
+    padding: 0.55rem 1.4rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    align-self: flex-end;
+}
+
+.filtres-btn-appliquer:hover {
+    background-color: #fff;
+    color: #111;
+}
+
+/* ─── Grille produits ───────────────────────── */
+#liste-produits {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 2.5rem;
+}
+
+/* ─── Carte produit ─────────────────────────── */
+.carte-produit {
+    border: 1px solid #e0e0e0;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.carte-produit:hover {
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+    transform: translateY(-4px);
+}
+
+/* Visuel placeholder (pas d'image en DB) */
+.produit-visuel {
+    width: 100%;
+    height: 220px;
+    background-color: #111;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: background-color 0.3s ease;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Image réelle dans la carte produit */
+.produit-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    display: block;
+    transition: transform 0.4s ease;
+}
+
+.carte-produit:hover .produit-img {
+    transform: scale(1.04);
+}
+
+.carte-produit:hover .produit-visuel {
+    background-color: #222;
+}
+
+.produit-visuel .initiale {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 3.5rem;
+    font-weight: 300;
+    color: #fff;
+    letter-spacing: 0.05em;
+    line-height: 1;
+}
+
+.produit-visuel .concentration-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* Le <a> enveloppe toute la carte : on lui applique le même flex colonne */
+.carte-produit > a {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    color: inherit;
+    text-decoration: none;
+}
+
+/* Corps de la carte */
+.carte-corps {
+    padding: 1.4rem;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.carte-corps h3 {
+    font-size: 1.15rem;
+    margin-bottom: 0.15rem;
+}
+
+
+.carte-marque {
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 0.7rem;
+}
+
+.carte-description {
+    font-size: 0.85rem;
+    color: #555;
+    margin-bottom: 0.8rem;
+    line-height: 1.6;
+    flex: 1;
+}
+
+/* Badges */
+.badges {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.badge {
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.65rem;
+    border: 1px solid #ddd;
+    color: #666;
+}
+
+.badge-categorie {
+    border-color: #111;
+    color: #111;
+}
+
+/* Pied de carte */
+.carte-pied {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid #ebebeb;
+    padding-top: 0.9rem;
+    margin-top: auto;
+}
+
+.carte-prix {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.3rem;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+}
+
+/* Indicateur de stock */
+.stock-indicateur {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: #888;
+}
+
+.stock-indicateur::before {
+    content: '';
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background-color: #4caf50; /* vert — stock normal */
+}
+
+.stock-indicateur.stock-faible::before {
+    background-color: #ff9800; /* orange — stock limité (≤ 10) */
+}
+
+/* ─── PAGE PRODUIT — fiche détail ───────────── */
+#fiche-produit {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 4rem;
+    align-items: start;
+}
+
+/* H2 du produit : pleine largeur */
+#fiche-produit > h2 {
+    grid-column: 1 / -1;
+    font-size: 2.6rem;
+    font-style: italic;
+    font-weight: 300;
+    border-bottom: 1px solid #111;
+    padding-bottom: 1rem;
+    margin-bottom: 2rem;
+}
+
+/* Visuel placeholder fiche */
+.fiche-visuel {
+    display: block; /* figure occupe la colonne gauche */
+}
+
+.fiche-placeholder {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    background-color: #111;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+    overflow: hidden;
+}
+
+/* Image réelle sur la fiche produit */
+.fiche-img {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    object-position: center top;
+    display: block;
+    transition: transform 0.5s ease;
+}
+
+.fiche-img:hover {
+    transform: scale(1.03);
+}
+
+.fiche-initiale {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 6rem;
+    font-weight: 300;
+    color: #fff;
+    line-height: 1;
+}
+
+.fiche-concentration {
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.fiche-visuel figcaption {
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    color: #888;
+    margin-top: 0.6rem;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+/* Colonne droite : sections d'informations */
+.produit-infos {
+    display: flex;
+    flex-direction: column;
+}
+
+.produit-infos section {
+    padding-top: 1.2rem;
+    padding-bottom: 1.2rem;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.produit-infos section:first-child {
+    padding-top: 0;
+}
+
+.produit-infos section:last-child {
+    border-bottom: none;
+}
+
+.produit-infos section h3 {
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 0.8rem;
+}
+
+.produit-infos section p {
+    font-size: 0.95rem;
+    color: #333;
+}
+
+.fiche-categorie {
+    font-size: 0.8rem !important;
+    color: #888 !important;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-top: 0.3rem;
+}
+
+/* Prix — liste de définition */
+.produit-infos dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.35rem 1.5rem;
+}
+
+.produit-infos dt {
+    font-size: 0.82rem;
+    color: #888;
+    font-weight: 400;
+}
+
+.produit-infos dd {
+    font-size: 0.95rem;
+    font-weight: 400;
+    color: #333;
+}
+
+.prix-tvac {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.3rem !important;
+    font-weight: 500;
+    color: #111 !important;
+}
+
+/* Stock sur la fiche produit */
+.stock-ok {
+    color: #2a7a2a;
+    font-weight: 500;
+}
+
+.stock-vide {
+    color: #c00;
+    font-weight: 500;
+}
+
+/* ─── Footer ────────────────────────────────── */
+footer {
+    border-top: 1px solid #e0e0e0;
+    text-align: center;
+    padding: 2rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    color: #888;
+    text-transform: uppercase;
+}
+
+/* ─── Responsive ────────────────────────────── */
+@media (max-width: 768px) {
+    header {
+        padding: 1.2rem 1.5rem;
+        flex-direction: column;
+        gap: 0.8rem;
+        align-items: flex-start;
+    }
+
+    main {
+        padding: 2.5rem 1.2rem;
+    }
+
+    /* Grille produits */
+    #liste-produits {
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+
+    /* Formulaire filtres */
+    .filtres-form {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    /* Fiche produit : 1 colonne */
+    #fiche-produit {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+
+    #fiche-produit > h2 {
+        grid-column: 1;
+        font-size: 2rem;
+    }
+}
+
+@media (max-width: 480px) {
+    #liste-produits {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================================
+   Sprint 4 — Panier & formulaire d'ajout
+   ============================================================ */
+
+/* Lien panier dans le header */
+.nav-panier {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+    color: #2c3e50;
+    text-decoration: none;
+    padding: 0.4rem 0.8rem;
+    border: 2px solid #2c3e50;
+    border-radius: 6px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.nav-panier:hover {
+    background: #2c3e50;
+    color: #fff;
+}
+
+.panier-badge {
+    background: #e74c3c;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    border-radius: 50%;
+    min-width: 1.4em;
+    text-align: center;
+    padding: 0.1em 0.3em;
+}
+
+/* Tableau du panier */
+.panier-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 2rem;
+}
+
+.panier-table th,
+.panier-table td {
+    padding: 0.9rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.panier-table thead th {
+    background: #f5f5f5;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #666;
+}
+
+.panier-produit {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.panier-img {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
+.panier-placeholder {
+    width: 56px;
+    height: 56px;
+    border-radius: 6px;
+    background: #2c3e50;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+/* Totaux du panier */
+.panier-totaux {
+    max-width: 360px;
+    margin-left: auto;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 1.5rem;
+    background: #fafafa;
+}
+
+.panier-totaux dl {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.6rem 1.5rem;
+    margin: 0;
+}
+
+.panier-totaux dt {
+    color: #555;
+}
+
+.panier-totaux dd {
+    text-align: right;
+    font-weight: 600;
+    margin: 0;
+}
+
+/* Formulaire d'ajout au panier */
+.form-ajout-panier {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+    margin-top: 0.5rem;
+}
+
+.form-ajout-panier label {
+    font-weight: 600;
+}
+
+.form-ajout-panier select {
+    padding: 0.4rem 0.6rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 0.95rem;
+}
+
+.btn-ajout-panier {
+    background: #2c3e50;
+    color: #fff;
+    border: none;
+    padding: 0.55rem 1.2rem;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-ajout-panier:hover {
+    background: #1a252f;
+}
+
+/* ── Feedback AJAX (Sprint 5) ── */
+.ajout-feedback {
+    margin-top: 0.9rem;
+    padding: 0.7rem 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.ajout-feedback--succes {
+    background: #e6f9ec;
+    color: #1a7a3c;
+    border: 1px solid #a3d9b5;
+}
+
+.ajout-feedback--erreur {
+    background: #fdecea;
+    color: #b71c1c;
+    border: 1px solid #f5b4b4;
+}
+
+.lien-panier-feedback {
+    margin-left: 0.6rem;
+    color: #1a7a3c;
+    font-weight: 700;
+    text-decoration: underline;
+}
+
+/* Bouton suppression panier */
+.btn-suppr {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+
+.btn-suppr:hover {
+    background: #fdecea;
+}
