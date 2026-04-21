@@ -1,59 +1,35 @@
 <?php
-/* ============================================================
-   Sprint 5 — Fiche produit + ajout au panier via Axios
-   MUST : axios.postForm() vers add_to_cart.php ($_POST)
-          Badge compteur mis à jour via textContent (anti-XSS)
-          Feedback succès/erreur sous le formulaire
-          Lien "Voir mon panier" affiché après ajout
-   ============================================================ */
-
 require_once 'connexion.php';
+require_once 'catalogue_helpers.php';
+require_once 'layout.php';
 
-/* ── Fonctions métier ────────────────────────────────────── */
-
-function retrieveProductById(PDO $pdo, $id): array
-{
-    $stmt = $pdo->prepare(
-        'SELECT * FROM PRODUIT WHERE id_produit = :id LIMIT 1'
-    );
-    $stmt->execute([':id' => $id]);
-    $produit = $stmt->fetch(PDO::FETCH_ASSOC);
-    return $produit ?: [];
-}
-
-function isProductAvailable(array $produit): bool
-{
-    $enStock   = (int) $produit['stock_produit'] > 0;
-    $dispVente = !isset($produit['statut_produit']) || (int) $produit['statut_produit'] === 1;
-    return $enStock && $dispVente;
-}
-
-/* ── Sécurisation de l'identifiant reçu en URL ───────────── */
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 
-/* ── Récupération du produit ─────────────────────────────── */
-$produit       = [];
-$erreur        = null;
+$produit = [];
+$erreur = null;
 $avertissement = null;
+$produitsAssocies = [];
 
 if ($id <= 0) {
     $erreur = 'Identifiant de produit invalide.';
 } else {
     try {
-        $pdo     = getConnexion();
+        $pdo = getConnexion();
         $produit = retrieveProductById($pdo, $id);
 
         if (empty($produit)) {
             $erreur = 'Ce produit est introuvable.';
-        } elseif (!isProductAvailable($produit)) {
-            $avertissement = 'Ce produit n\'est actuellement pas disponible à la vente.';
+        } else {
+            if (!isProductAvailable($produit)) {
+                $avertissement = 'Ce produit n est actuellement pas disponible a la vente.';
+            }
+            $produitsAssocies = retrieveRelatedProducts($pdo, $produit);
         }
     } catch (PDOException $e) {
-        $erreur = 'Impossible de charger le produit. Veuillez réessayer plus tard.';
+        $erreur = 'Impossible de charger le produit. Veuillez reessayer plus tard.';
     }
 }
 
-/* ── Calcul des prix ─────────────────────────────────────── */
 $prixHtva = null;
 $prixTvac = null;
 
@@ -62,21 +38,10 @@ if (!empty($produit)) {
     $prixTvac = $prixHtva * (1 + TVA);
 }
 
-/* ── Helpers d'affichage ─────────────────────────────────── */
-function formatPrix(float $prix): string
-{
-    return number_format($prix, 2, ',', ' ') . ' €';
-}
-
-function initiale(string $nom): string
-{
-    return mb_strtoupper(mb_substr($nom, 0, 1, 'UTF-8'), 'UTF-8');
-}
-
-/* ── Titre de la page ────────────────────────────────────── */
 $titrePage = !empty($produit)
-    ? htmlspecialchars($produit['nom_produit']) . ' — Boutique Parfums'
-    : 'Produit introuvable — Boutique Parfums';
+    ? htmlspecialchars($produit['nom_produit']) . ' - Bruxelles Notes'
+    : 'Produit introuvable - Bruxelles Notes';
+$cartCount = array_sum($_SESSION['panier'] ?? []);
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -86,31 +51,16 @@ $titrePage = !empty($produit)
     <title><?= $titrePage ?></title>
     <link rel="stylesheet" href="style.css">
     <?php if (!empty($produit)): ?>
-    <meta name="description"
-          content="<?= htmlspecialchars($produit['description_produit']) ?>">
+        <meta name="description" content="<?= htmlspecialchars($produit['description_produit']) ?>">
     <?php endif; ?>
 </head>
 <body>
 
-    <header>
-        <h1>Boutique Parfums</h1>
-        <nav aria-label="Navigation principale">
-            <a href="produits.php">Produits</a>
-        </nav>
-        <nav aria-label="Navigation secondaire">
-            <a href="basket.php" title="Mon panier" class="nav-panier">
-                🛒 Panier
-                <span id="compteur" class="panier-badge">
-                    <?= array_sum($_SESSION['panier'] ?? []) ?>
-                </span>
-            </a>
-        </nav>
-    </header>
+    <?php renderSiteHeader('shop', $cartCount); ?>
 
-    <main>
-
-        <a href="produits.php" class="lien-retour" title="Retour à la liste des produits">
-            ← Retour aux produits
+    <main class="detail-page">
+        <a href="produits.php" class="lien-retour" title="Retour a la liste des produits">
+            Retour aux produits
         </a>
 
         <?php if ($erreur): ?>
@@ -120,140 +70,196 @@ $titrePage = !empty($produit)
         <?php else: ?>
 
             <?php if ($avertissement): ?>
-                <p class="message message--avertissement">
-                    ⚠ <?= htmlspecialchars($avertissement) ?>
-                </p>
+                <p class="message message--avertissement"><?= htmlspecialchars($avertissement) ?></p>
             <?php endif; ?>
 
             <?php
-            $nom           = htmlspecialchars($produit['nom_produit']);
-            $marque        = htmlspecialchars($produit['marque_produit']);
-            $categorie     = htmlspecialchars($produit['categorie_produit']);
+            $nom = htmlspecialchars($produit['nom_produit']);
+            $marque = htmlspecialchars($produit['marque_produit']);
+            $categorie = htmlspecialchars($produit['categorie_produit']);
             $concentration = htmlspecialchars($produit['concentration_parfum']);
-            $description   = htmlspecialchars($produit['description_produit']);
-            $stock         = (int) $produit['stock_produit'];
+            $description = htmlspecialchars($produit['description_produit']);
+            $stock = (int) $produit['stock_produit'];
+            $imagePath = imageProduitParNom($produit['nom_produit']);
+            $profil = profilOlfactif($produit);
             ?>
 
-            <section id="fiche-produit" aria-label="Fiche du produit <?= $nom ?>">
+            <section class="detail-hero" aria-label="Fiche du produit <?= $nom ?>">
+                <div class="detail-copy">
+                    <p class="detail-kicker"><?= $marque ?> · <?= $categorie ?></p>
+                    <h2><?= $nom ?></h2>
+                    <p class="detail-subtitle">
+                        Une composition <?= mb_strtolower($categorie, 'UTF-8') ?> avec un sillage
+                        <?= mb_strtolower($concentration, 'UTF-8') ?> pense pour durer.
+                    </p>
 
-                <h2><?= $nom ?></h2>
-
-                <figure class="fiche-visuel" aria-hidden="true">
-                    <?php
-                    $imagesProduits = [
-                            'bleu intense' => 'images/bleu_intense.png',
-                            'rose élégante' => 'images/rose_elegante.png',
-                            'citrus energy' => 'images/citrus_energy.png',
-                            'nuit mystérieuse' => 'images/nuit_mysterieuse.png',
-                            'océan sport' => 'images/ocean_sport.png',
-                            'vanilla dream' => 'images/vanilla_dream.png'
-                    ];
-                    $nomCle    = mb_strtolower(trim($produit['nom_produit']), 'UTF-8');
-                    $imagePath = $imagesProduits[$nomCle] ?? null;
-                    ?>
-                    <?php if ($imagePath): ?>
-                        <img src="<?= htmlspecialchars($imagePath) ?>"
-                             alt="<?= $nom ?>"
-                             class="fiche-img">
-                    <?php else: ?>
-                        <div class="fiche-placeholder">
-                            <span class="fiche-initiale"><?= initiale($nom) ?></span>
-                            <span class="fiche-concentration"><?= $concentration ?></span>
-                        </div>
-                    <?php endif; ?>
-                    <figcaption><?= $nom ?> — <?= $marque ?></figcaption>
-                </figure>
-
-                <div class="produit-infos">
-
-                    <section aria-label="Identification">
-                        <h3>Marque</h3>
-                        <p><?= $marque ?></p>
-                        <p class="fiche-categorie"><?= $categorie ?> · <?= $concentration ?></p>
-                    </section>
-
-                    <section aria-label="Description">
-                        <h3>Description</h3>
-                        <p><?= $description ?></p>
-                    </section>
-
-                    <section aria-label="Prix">
-                        <h3>Prix</h3>
-                        <dl>
-                            <dt>Prix HTVA</dt>
-                            <dd><?= formatPrix($prixHtva) ?></dd>
-
-                            <dt>TVA (<?= (int)(TVA * 100) ?> %)</dt>
-                            <dd><?= formatPrix($prixTvac - $prixHtva) ?></dd>
-
-                            <dt>Prix TVAC</dt>
-                            <dd class="prix-tvac"><?= formatPrix($prixTvac) ?></dd>
-                        </dl>
-                    </section>
-
-                    <section aria-label="Disponibilité">
-                        <h3>Disponibilité</h3>
-                        <?php if ($stock > 0): ?>
-                            <p>
-                                <strong class="stock-ok">En stock</strong>
-                                — <?= $stock ?> unité<?= $stock > 1 ? 's' : '' ?> disponible<?= $stock > 1 ? 's' : '' ?>
-                            </p>
-                        <?php else: ?>
-                            <p>
-                                <strong class="stock-vide">Rupture de stock</strong>
-                                — Ce produit n'est pas disponible actuellement.
-                            </p>
-                        <?php endif; ?>
-                    </section>
-
-                    <!-- ── Formulaire d'ajout au panier (AJAX — Sprint 5) ── -->
-                    <?php if (isProductAvailable($produit)): ?>
-
-                        <?php $qteMax = min($stock, 5); ?>
-
-                        <section aria-label="Ajouter au panier">
-                            <h3>Ajouter au panier</h3>
-
-                            <form id="form-ajout-panier"
-                                  class="form-ajout-panier"
-                                  data-id-produit="<?= $id ?>">
-
-                                <label for="quantite">Quantité :</label>
-                                <select id="quantite" name="quantite">
-                                    <?php for ($i = 1; $i <= $qteMax; $i++): ?>
-                                        <option value="<?= $i ?>"><?= $i ?></option>
-                                    <?php endfor; ?>
-                                </select>
-
-                                <button type="submit" class="btn-ajout-panier">
-                                    Ajouter au panier
-                                </button>
-
-                            </form>
-
-                            <!-- Zone de feedback (remplie par JS) -->
-                            <div id="ajout-feedback" role="status" aria-live="polite"></div>
-
-                        </section>
-
-                    <?php endif; ?>
-
+                    <div class="detail-badges">
+                        <span class="badge badge-categorie"><?= $categorie ?></span>
+                        <span class="badge"><?= $concentration ?></span>
+                        <span class="badge"><?= $stock > 0 ? 'Disponible' : 'Indisponible' ?></span>
+                    </div>
                 </div>
 
+                <div class="detail-panel">
+                    <div class="detail-visual-card">
+                        <?php if ($imagePath): ?>
+                            <img src="<?= htmlspecialchars($imagePath) ?>"
+                                 alt="<?= $nom ?>"
+                                 class="fiche-img detail-main-image"
+                                 loading="eager">
+                        <?php else: ?>
+                            <div class="fiche-placeholder detail-main-placeholder">
+                                <span class="fiche-initiale"><?= initiale($produit['nom_produit']) ?></span>
+                                <span class="fiche-concentration"><?= $concentration ?></span>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <aside class="detail-summary-card">
+                        <section class="detail-summary-section">
+                            <h3>Fragrance Notes</h3>
+                            <dl class="landing-notes-list">
+                                <dt>Top Notes</dt>
+                                <dd><?= htmlspecialchars($profil['top']) ?></dd>
+                                <dt>Heart Notes</dt>
+                                <dd><?= htmlspecialchars($profil['heart']) ?></dd>
+                                <dt>Base Notes</dt>
+                                <dd><?= htmlspecialchars($profil['base']) ?></dd>
+                            </dl>
+                        </section>
+
+                        <section class="detail-summary-section">
+                            <h3>Prix</h3>
+                            <dl class="detail-price-grid">
+                                <dt>Prix HTVA</dt>
+                                <dd><?= formatPrix($prixHtva) ?></dd>
+                                <dt>TVA (<?= (int) (TVA * 100) ?> %)</dt>
+                                <dd><?= formatPrix($prixTvac - $prixHtva) ?></dd>
+                                <dt>Prix TVAC</dt>
+                                <dd class="prix-tvac"><?= formatPrix($prixTvac) ?></dd>
+                            </dl>
+                        </section>
+
+                        <section class="detail-summary-section">
+                            <h3>Disponibilite</h3>
+                            <?php if ($stock > 0): ?>
+                                <p><strong class="stock-ok">En stock</strong> - <?= $stock ?> unite<?= $stock > 1 ? 's' : '' ?> disponible<?= $stock > 1 ? 's' : '' ?></p>
+                            <?php else: ?>
+                                <p><strong class="stock-vide">Rupture</strong> - Produit temporairement indisponible.</p>
+                            <?php endif; ?>
+                        </section>
+
+                        <?php if (isProductAvailable($produit)): ?>
+                            <?php $qteMax = min($stock, 5); ?>
+                            <section class="detail-summary-section">
+                                <h3>Ajouter au panier</h3>
+
+                                <form id="form-ajout-panier" class="form-ajout-panier detail-form-ajout" data-id-produit="<?= $id ?>">
+                                    <label for="quantite">Quantite</label>
+                                    <select id="quantite" name="quantite">
+                                        <?php for ($i = 1; $i <= $qteMax; $i++): ?>
+                                            <option value="<?= $i ?>"><?= $i ?></option>
+                                        <?php endfor; ?>
+                                    </select>
+
+                                    <button type="submit" class="btn-ajout-panier">
+                                        Ajouter au panier
+                                    </button>
+                                </form>
+
+                                <div id="ajout-feedback" role="status" aria-live="polite"></div>
+                            </section>
+                        <?php endif; ?>
+                    </aside>
+                </div>
             </section>
 
-        <?php endif; ?>
+            <section class="detail-content-grid" aria-label="Informations detaillees">
+                <article class="detail-story-card">
+                    <h3>Description</h3>
+                    <p><?= $description ?></p>
+                </article>
 
+                <article class="detail-story-card">
+                    <h3>Identite</h3>
+                    <ul class="detail-feature-list">
+                        <li><span>Marque</span><strong><?= $marque ?></strong></li>
+                        <li><span>Categorie</span><strong><?= $categorie ?></strong></li>
+                        <li><span>Concentration</span><strong><?= $concentration ?></strong></li>
+                    </ul>
+                </article>
+
+                <article class="detail-dark-card">
+                    <h3>Pourquoi ce parfum</h3>
+                    <p>
+                        Une fiche plus claire, un achat plus rapide et un univers plus premium autour de chaque
+                        parfum pour mieux valoriser votre catalogue.
+                    </p>
+                </article>
+            </section>
+
+            <?php if (!empty($produitsAssocies)): ?>
+                <section class="related-section" aria-label="Produits associes">
+                    <div class="catalogue-header">
+                        <div>
+                            <p class="catalogue-kicker">A decouvrir aussi</p>
+                            <h2>Vous aimerez aussi</h2>
+                        </div>
+                    </div>
+
+                    <section id="liste-produits" aria-label="Produits associes">
+                        <?php foreach ($produitsAssocies as $associe):
+                            $associeId = (int) $associe['id_produit'];
+                            $associeNom = htmlspecialchars($associe['nom_produit']);
+                            $associeMarque = htmlspecialchars($associe['marque_produit']);
+                            $associeCategorie = htmlspecialchars($associe['categorie_produit']);
+                            $associeConcentration = htmlspecialchars($associe['concentration_parfum']);
+                            $associeDescription = htmlspecialchars($associe['description_produit']);
+                            $associePrix = formatPrix((float) $associe['prix_produit']);
+                            $associeStock = (int) $associe['stock_produit'];
+                            $associeImage = imageProduitParNom($associe['nom_produit']);
+                        ?>
+                            <article class="carte-produit">
+                                <a href="produit.php?id=<?= $associeId ?>" title="Voir la fiche de <?= $associeNom ?>">
+                                    <div class="produit-visuel" aria-hidden="true">
+                                        <?php if ($associeImage): ?>
+                                            <img src="<?= htmlspecialchars($associeImage) ?>" alt="<?= $associeNom ?>" class="produit-img" loading="lazy">
+                                        <?php else: ?>
+                                            <span class="initiale"><?= initiale($associe['nom_produit']) ?></span>
+                                            <span class="concentration-label"><?= $associeConcentration ?></span>
+                                        <?php endif; ?>
+                                    </div>
+
+                                    <div class="carte-corps">
+                                        <h3><?= $associeNom ?></h3>
+                                        <p class="carte-marque"><?= $associeMarque ?></p>
+                                        <p class="carte-description"><?= $associeDescription ?></p>
+                                        <div class="badges">
+                                            <span class="badge badge-categorie"><?= $associeCategorie ?></span>
+                                            <span class="badge"><?= $associeConcentration ?></span>
+                                        </div>
+                                        <div class="carte-pied">
+                                            <span class="carte-prix"><?= $associePrix ?></span>
+                                            <span class="<?= stockClasse($associeStock) ?>">
+                                                <?= stockLibelle($associeStock) ?>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </a>
+                            </article>
+                        <?php endforeach; ?>
+                    </section>
+                </section>
+            <?php endif; ?>
+
+        <?php endif; ?>
     </main>
 
-    <footer>
-        <p>&copy; 2026 Boutique Parfums. Tous droits réservés.</p>
-    </footer>
+    <?php renderSiteFooter(); ?>
 
-    <!-- ── Axios CDN + script produit ── -->
     <?php if (!empty($produit) && isProductAvailable($produit)): ?>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <script src="js/produit.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+        <script src="js/produit.js"></script>
     <?php endif; ?>
 
 </body>

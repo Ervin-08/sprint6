@@ -1,136 +1,53 @@
 <?php
-/* ============================================================
-   Sprint 2 + Sprint 3 — Page produits dynamique
-   MUST   : retrieveBuyableProducts() — liste depuis la DB
-   SHOULD : retrieveCategories()      — catégories depuis la DB
-            retrieveProducts()        — filtrage SQL par catégorie
-   COULD  : retrieveProducts() avec tri par prix
-   ============================================================ */
-
 require_once 'connexion.php';
+require_once 'catalogue_helpers.php';
+require_once 'layout.php';
 
-/* ── Fonctions métier ────────────────────────────────────── */
-
-/**
- * Sprint 2 — MUST
- * Retourne tous les produits disponibles à la vente (stock > 0),
- * ordonnés par priorité de vente (id_produit).
- */
-function retrieveBuyableProducts(PDO $pdo): array
-{
-    return retrieveProducts($pdo);
-}
-
-/**
- * Sprint 3 — SHOULD
- * Retourne toutes les catégories ayant au moins un produit disponible.
- */
-function retrieveCategories(PDO $pdo): array
-{
-    $stmt = $pdo->query(
-        'SELECT DISTINCT categorie_produit
-           FROM PRODUIT
-          WHERE stock_produit > 0
-          ORDER BY categorie_produit ASC'
-    );
-    return $stmt->fetchAll(PDO::FETCH_COLUMN);
-}
-
-/**
- * Sprint 3 — SHOULD + COULD
- * Retourne les produits disponibles, filtrés par catégorie(s) et triés.
- * Le filtre est appliqué en SQL (union, pas intersection).
- * Les catégories non reconnues sont ignorées.
- *
- * @param PDO    $pdo
- * @param array  $categories  Catégories validées (vide = toutes)
- * @param string $order       'asc' | 'desc' | '' (priorité de vente)
- */
-function retrieveProducts(PDO $pdo, array $categories = [], string $order = ''): array
-{
-    $params = [];
-    $sql    = 'SELECT * FROM PRODUIT WHERE stock_produit > 0';
-
-    // Filtre catégories — union (OR), appliqué en SQL
-    if (!empty($categories)) {
-        $placeholders = implode(',', array_fill(0, count($categories), '?'));
-        $sql .= " AND categorie_produit IN ($placeholders)";
-        $params = array_values($categories);
-    }
-
-    // Tri : prix croissant, décroissant, ou priorité de vente (défaut)
-    if ($order === 'asc') {
-        $sql .= ' ORDER BY prix_produit ASC';
-    } elseif ($order === 'desc') {
-        $sql .= ' ORDER BY prix_produit DESC';
-    } else {
-        $sql .= ' ORDER BY id_produit ASC';
-    }
-
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
-
-/* ── Lecture et sécurisation des paramètres GET ─────────── */
-
-$erreur                  = null;
-$produits                = [];
-$categoriesDisponibles   = [];
+$erreur = null;
+$produits = [];
+$categoriesDisponibles = [];
 $categoriesSelectionnees = [];
-$ordrePrix               = '';
+$ordrePrix = '';
 
 try {
     $pdo = getConnexion();
-
-    // 1. Catégories depuis la DB (Sprint 3 SHOULD)
     $categoriesDisponibles = retrieveCategories($pdo);
 
-    // 2. Valider les catégories soumises (whitelist contre la DB)
     if (!empty($_GET['categories']) && is_array($_GET['categories'])) {
         foreach ($_GET['categories'] as $cat) {
             $cat = (string) $cat;
             if (in_array($cat, $categoriesDisponibles, true)) {
                 $categoriesSelectionnees[] = $cat;
             }
-            // Catégorie non reconnue → ignorée (spec Sprint 3)
         }
     }
 
-    // 3. Valider le tri par prix (whitelist)
     if (isset($_GET['ordre_prix']) && in_array($_GET['ordre_prix'], ['asc', 'desc'], true)) {
         $ordrePrix = $_GET['ordre_prix'];
     }
 
-    // 4. Récupérer les produits filtrés et triés
     $produits = retrieveProducts($pdo, $categoriesSelectionnees, $ordrePrix);
-
 } catch (PDOException $e) {
-    $erreur = 'Impossible de charger les produits. Veuillez réessayer plus tard.';
+    $erreur = 'Impossible de charger les produits. Veuillez reessayer plus tard.';
 }
 
-/* ── Helpers d'affichage ─────────────────────────────────── */
+$cartCount = array_sum($_SESSION['panier'] ?? []);
+$galerieHero = [];
 
-function formatPrix(float $prix): string
-{
-    return number_format($prix, 2, ',', ' ') . ' €';
-}
+foreach ($produits as $produitGalerie) {
+    $image = imageProduitParNom($produitGalerie['nom_produit']);
+    if ($image) {
+        $galerieHero[] = [
+            'image' => $image,
+            'nom' => $produitGalerie['nom_produit'],
+            'marque' => $produitGalerie['marque_produit'],
+            'categorie' => $produitGalerie['categorie_produit'],
+        ];
+    }
 
-function initiale(string $nom): string
-{
-    return mb_strtoupper(mb_substr($nom, 0, 1, 'UTF-8'), 'UTF-8');
-}
-
-function stockClasse(int $stock): string
-{
-    if ($stock <= 10) return 'stock-indicateur stock-faible';
-    return 'stock-indicateur';
-}
-
-function stockLibelle(int $stock): string
-{
-    if ($stock <= 10) return 'Stock limité (' . $stock . ')';
-    return 'En stock (' . $stock . ')';
+    if (count($galerieHero) === 4) {
+        break;
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -138,30 +55,15 @@ function stockLibelle(int $stock): string
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Boutique Parfums — Nos Produits</title>
+    <title>Bruxelles Notes - E-shop</title>
     <link rel="stylesheet" href="style.css">
-    <meta name="description" content="Découvrez notre sélection de parfums : Femme, Homme, Unisexe.">
+    <meta name="description" content="Decouvrez la collection Bruxelles Notes, nos parfums signatures et notre e-shop premium.">
 </head>
 <body>
 
-    <header>
-        <h1>Boutique Parfums</h1>
-        <nav aria-label="Navigation principale">
-            <a href="produits.php">Produits</a>
-        </nav>
-        <nav aria-label="Navigation secondaire">
-            <a href="basket.php" title="Mon panier" class="nav-panier">
-                🛒 Panier
-                <span id="compteur" class="panier-badge">
-                    <?= array_sum($_SESSION['panier'] ?? []) ?>
-                </span>
-            </a>
-        </nav>
-    </header>
+    <?php renderSiteHeader('shop', $cartCount); ?>
 
-    <main>
-        <h2>Nos Produits</h2>
-
+    <main class="landing-produits">
         <?php if ($erreur): ?>
 
             <p class="message message--erreur"><?= htmlspecialchars($erreur) ?></p>
@@ -172,123 +74,251 @@ function stockLibelle(int $stock): string
 
         <?php else: ?>
 
-            <!-- ── Formulaire de filtres (Sprint 3 SHOULD + COULD) ──
-                 Catégories chargées depuis la DB.
-                 État du formulaire conservé après soumission (GET).
-                 La liste se met à jour à la soumission.
-            ──────────────────────────────────────────────────────── -->
-            <form class="filtres-form" method="get" action="produits.php"
-                  aria-label="Options d'affichage des produits">
+            <?php
+            $produitVedette = $produits[0];
+            $produitSecondaire = $produits[1] ?? $produitVedette;
+            $imageVedette = imageProduitParNom($produitVedette['nom_produit']);
+            $imageSecondaire = imageProduitParNom($produitSecondaire['nom_produit']);
+            $profilVedette = profilOlfactif($produitVedette);
+            $prixVedette = formatPrix((float) $produitVedette['prix_produit']);
+            $stockVedette = (int) $produitVedette['stock_produit'];
+            ?>
 
-                <fieldset class="filtres-fieldset">
-                    <legend class="filtres-legend">Filtrer par catégorie</legend>
+            <section class="landing-shell" aria-label="Presentation de la collection">
+                <div class="landing-topbar">
+                    <span class="landing-menu">E-shop</span>
+                    <div class="landing-brand-block">
+                        <span class="landing-brand">Bruxelles Notes</span>
+                        <span class="landing-brand-sub">Collection signature</span>
+                    </div>
+                    <p class="landing-kicker">Une presence elegante, construite autour de votre selection.</p>
+                </div>
 
-                    <?php foreach ($categoriesDisponibles as $cat):
-                        $checked = in_array($cat, $categoriesSelectionnees, true) ? 'checked' : '';
-                    ?>
-                        <label class="filtre-checkbox">
-                            <input type="checkbox"
-                                   name="categories[]"
-                                   value="<?= htmlspecialchars($cat) ?>"
-                                   <?= $checked ?>>
-                            <?= htmlspecialchars($cat) ?>
-                        </label>
-                    <?php endforeach; ?>
-                </fieldset>
+                <section class="landing-hero" aria-label="Produit vedette">
+                    <div class="landing-hero-copy">
+                        <span class="landing-pill">Only for you</span>
+                        <h2>Un sillage qui reste encore apres votre passage.</h2>
+                        <p class="landing-intro">
+                            Inspiree par des instants de douceur, de confiance et de presence, notre collection
+                            met en avant <?= htmlspecialchars($produitVedette['nom_produit']) ?> pour ouvrir la visite
+                            avec votre univers parfum.
+                        </p>
 
-                <fieldset class="filtres-fieldset">
-                    <legend class="filtres-legend">Trier par prix</legend>
+                        <div class="landing-actions">
+                            <a href="produit.php?id=<?= (int) $produitVedette['id_produit'] ?>" class="landing-btn landing-btn-primary">
+                                Acheter
+                            </a>
+                            <a href="#liste-produits" class="landing-btn landing-btn-secondary">
+                                Voir la collection
+                            </a>
+                        </div>
+                    </div>
 
-                    <label class="filtre-select-label" for="ordre-prix">Ordre :</label>
-                    <select id="ordre-prix" name="ordre_prix" class="filtre-select">
-                        <option value=""      <?= $ordrePrix === ''     ? 'selected' : '' ?>>Priorité de vente (défaut)</option>
-                        <option value="asc"   <?= $ordrePrix === 'asc'  ? 'selected' : '' ?>>Prix croissant</option>
-                        <option value="desc"  <?= $ordrePrix === 'desc' ? 'selected' : '' ?>>Prix décroissant</option>
-                    </select>
-                </fieldset>
+                    <div class="landing-hero-visual">
+                        <?php if (!empty($galerieHero)): ?>
+                            <section class="media-gallery" data-gallery data-autoplay="true" aria-label="Galerie de la collection">
+                                <div class="media-gallery-track">
+                                    <?php foreach ($galerieHero as $index => $slide): ?>
+                                        <figure class="media-gallery-slide <?= $index === 0 ? 'is-active' : '' ?>">
+                                            <img src="<?= htmlspecialchars($slide['image']) ?>"
+                                                 alt="<?= htmlspecialchars($slide['nom']) ?>"
+                                                 class="landing-hero-image">
+                                            <figcaption class="media-gallery-caption">
+                                                <span class="media-gallery-title"><?= htmlspecialchars($slide['nom']) ?></span>
+                                                <span class="media-gallery-meta"><?= htmlspecialchars($slide['marque']) ?> · <?= htmlspecialchars($slide['categorie']) ?></span>
+                                            </figcaption>
+                                        </figure>
+                                    <?php endforeach; ?>
+                                </div>
 
-                <button type="submit" class="filtres-btn-appliquer">
-                    Appliquer les filtres
-                </button>
+                                <button type="button" class="media-gallery-arrow media-gallery-arrow-prev" data-gallery-prev aria-label="Image precedente">
+                                    ‹
+                                </button>
+                                <button type="button" class="media-gallery-arrow media-gallery-arrow-next" data-gallery-next aria-label="Image suivante">
+                                    ›
+                                </button>
 
-            </form>
+                                <div class="media-gallery-dots" role="tablist" aria-label="Navigation de la galerie">
+                                    <?php foreach ($galerieHero as $index => $slide): ?>
+                                        <button type="button"
+                                                class="media-gallery-dot <?= $index === 0 ? 'is-active' : '' ?>"
+                                                data-gallery-dot="<?= $index ?>"
+                                                aria-label="Aller a l image <?= $index + 1 ?>"></button>
+                                    <?php endforeach; ?>
+                                </div>
+                            </section>
+                        <?php elseif ($imageVedette): ?>
+                            <img src="<?= htmlspecialchars($imageVedette) ?>"
+                                 alt="<?= htmlspecialchars($produitVedette['nom_produit']) ?>"
+                                 class="landing-hero-image">
+                        <?php else: ?>
+                            <div class="landing-hero-placeholder">
+                                <span class="initiale"><?= initiale($produitVedette['nom_produit']) ?></span>
+                                <span class="concentration-label"><?= htmlspecialchars($produitVedette['concentration_parfum']) ?></span>
+                            </div>
+                        <?php endif; ?>
+                    </div>
 
-            <!-- ── Grille des produits ──────────────────────────── -->
-            <section id="liste-produits" aria-label="Liste des produits">
+                    <aside class="landing-side" aria-label="Notes olfactives">
+                        <section class="landing-notes-card">
+                            <h3>Fragrance Notes</h3>
+                            <dl class="landing-notes-list">
+                                <dt>Top Notes</dt>
+                                <dd><?= htmlspecialchars($profilVedette['top']) ?></dd>
+                                <dt>Heart Notes</dt>
+                                <dd><?= htmlspecialchars($profilVedette['heart']) ?></dd>
+                                <dt>Base Notes</dt>
+                                <dd><?= htmlspecialchars($profilVedette['base']) ?></dd>
+                            </dl>
+                        </section>
 
-                <?php foreach ($produits as $produit):
-                    $id           = (int) $produit['id_produit'];
-                    $nom          = htmlspecialchars($produit['nom_produit']);
-                    $marque       = htmlspecialchars($produit['marque_produit']);
-                    $categorie    = htmlspecialchars($produit['categorie_produit']);
-                    $concentration = htmlspecialchars($produit['concentration_parfum']);
-                    $description  = htmlspecialchars($produit['description_produit']);
-                    $prix         = formatPrix((float) $produit['prix_produit']);
-                    $stock        = (int) $produit['stock_produit'];
-                ?>
-                <article class="carte-produit">
-
-                    <a href="produit.php?id=<?= $id ?>"
-                       title="Voir la fiche de <?= $nom ?>">
-
-                        <!-- Visuel : image réelle si disponible, sinon placeholder -->
-                        <?php
-                        $imagesProduits = [
-                            'bleu intense' => 'images/bleu_intense.png',
-                            'rose élégante' => 'images/rose_elegante.png',
-                            'citrus energy' => 'images/citrus_energy.png',
-                            'nuit mystérieuse' => 'images/nuit_mysterieuse.png',
-                            'océan sport' => 'images/ocean_sport.png',
-                            'vanilla dream' => 'images/vanilla_dream.png'
-                            
-                            
-                        ];
-                        $nomCle    = mb_strtolower(trim($produit['nom_produit']), 'UTF-8');
-                        $imgPath   = $imagesProduits[$nomCle] ?? null;
-                        ?>
-                        <div class="produit-visuel" aria-hidden="true">
-                            <?php if ($imgPath): ?>
-                                <img src="<?= htmlspecialchars($imgPath) ?>"
-                                     alt="<?= $nom ?>"
-                                     class="produit-img">
+                        <section class="landing-side-visual">
+                            <?php if ($imageSecondaire): ?>
+                                <img src="<?= htmlspecialchars($imageSecondaire) ?>"
+                                     alt="<?= htmlspecialchars($produitSecondaire['nom_produit']) ?>"
+                                     class="landing-side-image">
                             <?php else: ?>
-                                <span class="initiale"><?= initiale($nom) ?></span>
-                                <span class="concentration-label"><?= $concentration ?></span>
+                                <div class="landing-side-placeholder">
+                                    <span class="initiale"><?= initiale($produitSecondaire['nom_produit']) ?></span>
+                                </div>
                             <?php endif; ?>
+                        </section>
+
+                        <section class="landing-values-card">
+                            <ul>
+                                <li>Selection disponible en temps reel</li>
+                                <li>Petites collections aux profils differents</li>
+                                <li>Panier visible partout pendant la navigation</li>
+                            </ul>
+                        </section>
+                    </aside>
+                </section>
+
+                <section class="landing-story-grid" aria-label="Presentation editoriale">
+                    <article class="landing-story-copy">
+                        <h3>Fragrance that leaves your presence behind.</h3>
+                        <p>
+                            Bruxelles Notes imagine un e-shop ou l achat devient une experience de marque.
+                            Chaque parfum melange esthetique editoriale, details sensoriels et navigation claire.
+                        </p>
+                    </article>
+
+                    <article class="landing-story-notes">
+                        <h3>Produit vedette</h3>
+                        <p class="landing-story-product">
+                            <?= htmlspecialchars($produitVedette['nom_produit']) ?> - <?= htmlspecialchars($produitVedette['marque_produit']) ?>
+                        </p>
+                        <dl class="landing-story-meta">
+                            <dt>Categorie</dt>
+                            <dd><?= htmlspecialchars($produitVedette['categorie_produit']) ?></dd>
+                            <dt>Concentration</dt>
+                            <dd><?= htmlspecialchars($produitVedette['concentration_parfum']) ?></dd>
+                            <dt>Prix</dt>
+                            <dd><?= htmlspecialchars($prixVedette) ?></dd>
+                            <dt>Disponibilite</dt>
+                            <dd><?= htmlspecialchars(stockLibelle($stockVedette)) ?></dd>
+                        </dl>
+                    </article>
+
+                    <article class="landing-story-panel">
+                        <h3>Why choose Bruxelles Notes</h3>
+                        <p>
+                            Une direction artistique plus forte, des fiches detaillees, une navigation premium
+                            et un univers de marque plus memorisable.
+                        </p>
+                    </article>
+                </section>
+
+                <section class="catalogue-section" aria-label="Catalogue de parfums">
+                    <div class="catalogue-header">
+                        <div>
+                            <p class="catalogue-kicker">Collection complete</p>
+                            <h2>Nos Produits</h2>
                         </div>
 
-                        <!-- Informations produit -->
-                        <div class="carte-corps">
-                            <h3><?= $nom ?></h3>
-                            <p class="carte-marque"><?= $marque ?></p>
-                            <p class="carte-description"><?= $description ?></p>
+                        <form class="filtres-form" method="get" action="produits.php" aria-label="Options d affichage des produits">
+                            <fieldset class="filtres-fieldset">
+                                <legend class="filtres-legend">Filtrer par categorie</legend>
 
-                            <div class="badges">
-                                <span class="badge badge-categorie"><?= $categorie ?></span>
-                                <span class="badge"><?= $concentration ?></span>
-                            </div>
+                                <?php foreach ($categoriesDisponibles as $cat):
+                                    $checked = in_array($cat, $categoriesSelectionnees, true) ? 'checked' : '';
+                                ?>
+                                    <label class="filtre-checkbox">
+                                        <input type="checkbox" name="categories[]" value="<?= htmlspecialchars($cat) ?>" <?= $checked ?>>
+                                        <?= htmlspecialchars($cat) ?>
+                                    </label>
+                                <?php endforeach; ?>
+                            </fieldset>
 
-                            <div class="carte-pied">
-                                <span class="carte-prix"><?= $prix ?></span>
-                                <span class="<?= stockClasse($stock) ?>">
-                                    <?= stockLibelle($stock) ?>
-                                </span>
-                            </div>
-                        </div>
+                            <fieldset class="filtres-fieldset">
+                                <legend class="filtres-legend">Trier par prix</legend>
+                                <label class="filtre-select-label" for="ordre-prix">Ordre :</label>
+                                <select id="ordre-prix" name="ordre_prix" class="filtre-select">
+                                    <option value="" <?= $ordrePrix === '' ? 'selected' : '' ?>>Priorite de vente</option>
+                                    <option value="asc" <?= $ordrePrix === 'asc' ? 'selected' : '' ?>>Prix croissant</option>
+                                    <option value="desc" <?= $ordrePrix === 'desc' ? 'selected' : '' ?>>Prix decroissant</option>
+                                </select>
+                            </fieldset>
 
-                    </a>
+                            <button type="submit" class="filtres-btn-appliquer">Appliquer les filtres</button>
+                        </form>
+                    </div>
 
-                </article>
-                <?php endforeach; ?>
+                    <section id="liste-produits" aria-label="Liste des produits">
+                        <?php foreach ($produits as $produit):
+                            $id = (int) $produit['id_produit'];
+                            $nom = htmlspecialchars($produit['nom_produit']);
+                            $marque = htmlspecialchars($produit['marque_produit']);
+                            $categorie = htmlspecialchars($produit['categorie_produit']);
+                            $concentration = htmlspecialchars($produit['concentration_parfum']);
+                            $description = htmlspecialchars($produit['description_produit']);
+                            $prix = formatPrix((float) $produit['prix_produit']);
+                            $stock = (int) $produit['stock_produit'];
+                            $imgPath = imageProduitParNom($produit['nom_produit']);
+                        ?>
+                            <article class="carte-produit">
+                                <a href="produit.php?id=<?= $id ?>" title="Voir la fiche de <?= $nom ?>">
+                                    <div class="produit-visuel" aria-hidden="true">
+                                        <?php if ($imgPath): ?>
+                                            <img src="<?= htmlspecialchars($imgPath) ?>" alt="<?= $nom ?>" class="produit-img" loading="lazy">
+                                        <?php else: ?>
+                                            <span class="initiale"><?= initiale($produit['nom_produit']) ?></span>
+                                            <span class="concentration-label"><?= $concentration ?></span>
+                                        <?php endif; ?>
+                                    </div>
 
+                                    <div class="carte-corps">
+                                        <h3><?= $nom ?></h3>
+                                        <p class="carte-marque"><?= $marque ?></p>
+                                        <p class="carte-description"><?= $description ?></p>
+
+                                        <div class="badges">
+                                            <span class="badge badge-categorie"><?= $categorie ?></span>
+                                            <span class="badge"><?= $concentration ?></span>
+                                        </div>
+
+                                        <div class="carte-pied">
+                                            <span class="carte-prix"><?= $prix ?></span>
+                                            <span class="<?= stockClasse($stock) ?>">
+                                                <?= stockLibelle($stock) ?>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </a>
+                            </article>
+                        <?php endforeach; ?>
+                    </section>
+                </section>
             </section>
 
         <?php endif; ?>
     </main>
 
-    <footer>
-        <p>&copy; 2026 Boutique Parfums. Tous droits réservés.</p>
-    </footer>
+    <?php renderSiteFooter(); ?>
+
+    <?php if (!empty($galerieHero)): ?>
+        <script src="js/gallery.js"></script>
+    <?php endif; ?>
 
 </body>
 </html>

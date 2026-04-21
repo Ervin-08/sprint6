@@ -1,24 +1,12 @@
 <?php
-/* ============================================================
-   Sprint 5 — Panier dynamique
-   Lit $_SESSION['panier'] (id => quantité)
-   Récupère les détails des produits en DB via PDO
-   Bouton 🗑️ par ligne → suppression AJAX via Axios (panier.js)
-   Badge compteur mis à jour via textContent (anti-XSS)
-   ============================================================ */
+require_once 'connexion.php';
+require_once 'catalogue_helpers.php';
+require_once 'layout.php';
 
-require_once 'connexion.php';   // session_start() + PDO
-
-function formatPrix(float $prix): string
-{
-    return number_format($prix, 2, ',', ' ') . ' €';
-}
-
-/* ── Chargement du panier depuis la session + DB ─────────── */
-$lignesPanier  = [];
+$lignesPanier = [];
 $totalArticles = 0;
-$totalHtva     = 0.0;
-$erreur        = null;
+$totalHtva = 0.0;
+$erreur = null;
 
 $panier = $_SESSION['panier'] ?? [];
 
@@ -27,30 +15,34 @@ if (!empty($panier)) {
         $pdo = getConnexion();
 
         foreach ($panier as $id => $quantite) {
-            $sql  = 'SELECT * FROM PRODUIT WHERE id_produit = :id';
-            $stmt = $pdo->prepare($sql);
+            $stmt = $pdo->prepare('SELECT * FROM PRODUIT WHERE id_produit = :id');
             $stmt->execute(['id' => $id]);
             $produit = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            if (!$produit) continue;   // produit supprimé de la DB
+            if (!$produit) {
+                continue;
+            }
 
-            $prixHtva   = (float) $produit['prix_produit'];
+            $prixHtva = (float) $produit['prix_produit'];
             $totalLigne = $prixHtva * $quantite;
 
             $lignesPanier[] = [
-                'id'         => (int) $id,
-                'nom'        => $produit['nom_produit'],
-                'image'      => null,   // à étendre si images disponibles
-                'quantite'   => (int) $quantite,
-                'prixHtva'   => $prixHtva,
+                'id' => (int) $id,
+                'nom' => $produit['nom_produit'],
+                'marque' => $produit['marque_produit'],
+                'categorie' => $produit['categorie_produit'],
+                'concentration' => $produit['concentration_parfum'],
+                'image' => imageProduitParNom($produit['nom_produit']),
+                'quantite' => (int) $quantite,
+                'prixHtva' => $prixHtva,
                 'totalLigne' => $totalLigne,
             ];
 
             $totalArticles += $quantite;
-            $totalHtva     += $totalLigne;
+            $totalHtva += $totalLigne;
         }
     } catch (PDOException $e) {
-        $erreur = 'Impossible de charger le panier. Veuillez réessayer.';
+        $erreur = 'Impossible de charger le panier. Veuillez reessayer.';
     }
 }
 
@@ -61,27 +53,26 @@ $totalTvac = $totalHtva * (1 + TVA);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mon Panier — Boutique Parfums</title>
+    <title>Mon Panier - Bruxelles Notes</title>
     <link rel="stylesheet" href="style.css">
-    <meta name="description" content="Récapitulatif de votre panier d'achats.">
+    <meta name="description" content="Recapitulatif de votre panier d achats Bruxelles Notes.">
 </head>
 <body>
 
-    <header>
-        <h1>Boutique Parfums</h1>
-        <nav aria-label="Navigation principale">
-            <a href="produits.php">Produits</a>
-        </nav>
-        <nav aria-label="Navigation secondaire">
-            <a href="basket.php" title="Mon panier" class="nav-panier" aria-current="page">
-                🛒 Panier
-                <span id="compteur" class="panier-badge"><?= $totalArticles ?></span>
-            </a>
-        </nav>
-    </header>
+    <?php renderSiteHeader('basket', $totalArticles); ?>
 
-    <main>
-        <h2>Mon Panier</h2>
+    <main class="basket-page" data-tva="<?= htmlspecialchars((string) TVA) ?>">
+        <section class="basket-hero">
+            <div>
+                <p class="catalogue-kicker">Votre selection</p>
+                <h2>Mon Panier</h2>
+                <p class="basket-hero-copy">
+                    Retrouvez vos parfums, verifiez les totaux et poursuivez votre selection
+                    dans une presentation plus claire.
+                </p>
+            </div>
+            <a href="produits.php" class="landing-btn landing-btn-secondary">Continuer mes achats</a>
+        </section>
 
         <?php if ($erreur): ?>
 
@@ -89,70 +80,89 @@ $totalTvac = $totalHtva * (1 + TVA);
 
         <?php elseif (empty($lignesPanier)): ?>
 
-            <p class="message message--erreur">Votre panier est vide.</p>
+            <section class="basket-empty-state">
+                <h3>Votre panier est vide</h3>
+                <p>Explorez la collection pour ajouter un parfum a votre selection.</p>
+                <a href="produits.php" class="landing-btn landing-btn-primary">Voir les produits</a>
+            </section>
 
         <?php else: ?>
 
-            <section aria-label="Produits dans le panier">
-                <table class="panier-table">
-                    <caption class="sr-only">Liste des produits dans votre panier</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col">Produit</th>
-                            <th scope="col">Prix unitaire (HTVA)</th>
-                            <th scope="col">Quantité</th>
-                            <th scope="col">Total (HTVA)</th>
-                            <th scope="col">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+            <section class="basket-layout" aria-label="Recapitulatif du panier">
+                <section class="basket-items-panel">
+                    <div class="basket-panel-header">
+                        <h3>Articles selectionnes</h3>
+                        <p id="basket-count-label"><?= $totalArticles ?> article<?= $totalArticles > 1 ? 's' : '' ?></p>
+                    </div>
+
+                    <div class="basket-items-list">
                         <?php foreach ($lignesPanier as $ligne): ?>
-                        <tr class="tr-<?= $ligne['id'] ?>">
-                            <td class="panier-produit">
-                                <div class="panier-placeholder" aria-hidden="true">
-                                    <?= htmlspecialchars(mb_strtoupper(mb_substr($ligne['nom'], 0, 1, 'UTF-8'), 'UTF-8')) ?>
+                            <article class="basket-item tr-<?= $ligne['id'] ?>"
+                                     data-quantite="<?= $ligne['quantite'] ?>"
+                                     data-total-ligne="<?= htmlspecialchars((string) $ligne['totalLigne']) ?>">
+                                <a href="produit.php?id=<?= $ligne['id'] ?>" class="basket-item-visual" aria-label="Voir <?= htmlspecialchars($ligne['nom']) ?>">
+                                    <?php if ($ligne['image']): ?>
+                                        <img src="<?= htmlspecialchars($ligne['image']) ?>" alt="<?= htmlspecialchars($ligne['nom']) ?>" class="panier-img">
+                                    <?php else: ?>
+                                        <div class="panier-placeholder" aria-hidden="true">
+                                            <?= htmlspecialchars(initiale($ligne['nom'])) ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </a>
+
+                                <div class="basket-item-copy">
+                                    <div>
+                                        <p class="basket-item-brand"><?= htmlspecialchars($ligne['marque']) ?></p>
+                                        <h3><?= htmlspecialchars($ligne['nom']) ?></h3>
+                                        <p class="basket-item-meta">
+                                            <?= htmlspecialchars($ligne['categorie']) ?> · <?= htmlspecialchars($ligne['concentration']) ?>
+                                        </p>
+                                    </div>
+
+                                    <dl class="basket-item-pricing">
+                                        <dt>Prix unitaire</dt>
+                                        <dd><?= formatPrix($ligne['prixHtva']) ?></dd>
+                                        <dt>Quantite</dt>
+                                        <dd><?= $ligne['quantite'] ?></dd>
+                                        <dt>Total ligne</dt>
+                                        <dd><?= formatPrix($ligne['totalLigne']) ?></dd>
+                                    </dl>
                                 </div>
-                                <span><?= htmlspecialchars($ligne['nom']) ?></span>
-                            </td>
-                            <td><?= formatPrix($ligne['prixHtva']) ?></td>
-                            <td><?= $ligne['quantite'] ?></td>
-                            <td><?= formatPrix($ligne['totalLigne']) ?></td>
-                            <td>
-                                <button class="btn-suppr"
+
+                                <button class="btn-suppr basket-remove-btn"
                                         onclick="suppr(<?= $ligne['id'] ?>)"
                                         type="button"
                                         title="Supprimer <?= htmlspecialchars($ligne['nom']) ?>">
-                                    🗑️
+                                    Supprimer
                                 </button>
-                            </td>
-                        </tr>
+                            </article>
                         <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </section>
+                    </div>
+                </section>
 
-            <section class="panier-totaux" aria-label="Récapitulatif des totaux">
-                <dl>
-                    <dt>Nombre d'articles</dt>
-                    <dd><?= $totalArticles ?></dd>
+                <aside class="basket-summary-panel" aria-label="Totaux du panier">
+                    <h3>Recapitulatif</h3>
+                    <dl class="panier-totaux">
+                        <dt>Nombre d articles</dt>
+                        <dd id="total-articles"><?= $totalArticles ?></dd>
+                        <dt>Total HTVA</dt>
+                        <dd id="total-htva"><?= formatPrix($totalHtva) ?></dd>
+                        <dt>TVA (<?= (int) (TVA * 100) ?> %)</dt>
+                        <dd id="total-tva"><?= formatPrix($totalTvac - $totalHtva) ?></dd>
+                        <dt>Total TVAC</dt>
+                        <dd id="total-tvac" class="prix-tvac"><?= formatPrix($totalTvac) ?></dd>
+                    </dl>
 
-                    <dt>Total HTVA</dt>
-                    <dd><?= formatPrix($totalHtva) ?></dd>
-
-                    <dt>TVA (<?= (int)(TVA * 100) ?> %)</dt>
-                    <dd><?= formatPrix($totalTvac - $totalHtva) ?></dd>
-
-                    <dt>Total TVAC</dt>
-                    <dd class="prix-tvac"><?= formatPrix($totalTvac) ?></dd>
-                </dl>
+                    <div class="basket-summary-note">
+                        <p>Le panier se met a jour en direct et reste visible dans le header pendant toute la navigation.</p>
+                    </div>
+                </aside>
             </section>
 
         <?php endif; ?>
     </main>
 
-    <footer>
-        <p>&copy; 2026 Boutique Parfums. Tous droits réservés.</p>
-    </footer>
+    <?php renderSiteFooter(); ?>
 
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="js/panier.js"></script>

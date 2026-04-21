@@ -1,83 +1,77 @@
-/**
- * produit.js — Ajout au panier via Axios (Sprint 5)
- */
-
-/**
- * Met à jour le badge compteur dans le header.
- * Utilise textContent pour éviter les failles XSS.
- *
- * @param {string|number} total
- */
 function mettreAJourCompteur(total) {
     const compteur = document.getElementById('compteur');
-    if (compteur) {
-        compteur.textContent = total;
+    if (!compteur) {
+        return;
     }
+
+    compteur.textContent = total;
+    compteur.classList.add('panier-badge-pulse');
+    window.setTimeout(function () {
+        compteur.classList.remove('panier-badge-pulse');
+    }, 450);
 }
 
-/**
- * Affiche un message de feedback sous le formulaire.
- *
- * @param {boolean} succes
- * @param {string}  message
- */
 function afficherFeedback(succes, message) {
     const zone = document.getElementById('ajout-feedback');
-    if (!zone) return;
+    if (!zone) {
+        return;
+    }
 
     zone.className = 'ajout-feedback ' + (succes ? 'ajout-feedback--succes' : 'ajout-feedback--erreur');
+    zone.textContent = '';
+
+    const texte = document.createElement('span');
+    texte.textContent = (succes ? 'Succes : ' : 'Erreur : ') + message;
+    zone.appendChild(texte);
 
     if (succes) {
-        zone.innerHTML = '✓ ' + message +
-            ' <a href="basket.php" class="lien-panier-feedback">Voir mon panier →</a>';
-    } else {
-        zone.textContent = '✗ ' + message;
+        const lien = document.createElement('a');
+        lien.href = 'basket.php';
+        lien.className = 'lien-panier-feedback';
+        lien.textContent = 'Voir mon panier';
+        zone.appendChild(lien);
     }
 }
 
-/**
- * Envoie une requête POST via axios.postForm pour ajouter un produit au panier.
- * Données envoyées en x-www-form-urlencoded → accessibles via $_POST en PHP.
- *
- * @param {number} idProduit
- * @param {number} quantite
- */
 function ajouterAuPanier(idProduit, quantite) {
     const btn = document.querySelector('#form-ajout-panier button[type="submit"]');
 
+    if (!btn) {
+        return;
+    }
+
     btn.disabled = true;
-    btn.textContent = 'Ajout en cours…';
+    btn.textContent = 'Ajout en cours...';
 
     axios.postForm('add_to_cart.php', {
         product_id: idProduit,
-        quantite:   quantite,
+        quantite: quantite,
     })
-    .then(function (response) {
-        mettreAJourCompteur(response.data);
-        afficherFeedback(true, 'Produit ajouté au panier.');
-    })
-    .catch(function (error) {
-        const message = error.response ? error.response.data : 'Une erreur est survenue.';
-        afficherFeedback(false, message);
-    })
-    .finally(function () {
-        btn.disabled = false;
-        btn.textContent = 'Ajouter au panier';
-    });
+        .then(function (response) {
+            mettreAJourCompteur(response.data);
+            afficherFeedback(true, 'Le produit a bien ete ajoute au panier.');
+        })
+        .catch(function (error) {
+            const message = error.response ? error.response.data : 'Une erreur est survenue.';
+            afficherFeedback(false, message);
+        })
+        .finally(function () {
+            btn.disabled = false;
+            btn.textContent = 'Ajouter au panier';
+        });
 }
 
-/**
- * Initialise le formulaire d'ajout au panier.
- */
 function initFormAjoutPanier() {
     const form = document.getElementById('form-ajout-panier');
-    if (!form) return;
+    if (!form) {
+        return;
+    }
 
     form.addEventListener('submit', function (e) {
         e.preventDefault();
 
         const idProduit = parseInt(form.dataset.idProduit, 10);
-        const quantite  = parseInt(form.querySelector('#quantite').value, 10);
+        const quantite = parseInt(form.querySelector('#quantite').value, 10);
 
         ajouterAuPanier(idProduit, quantite);
     });

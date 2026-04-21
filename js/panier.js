@@ -1,41 +1,34 @@
-/**
- * panier.js — Suppression d'articles du panier via Axios (Sprint 5)
- */
-
-/**
- * Met à jour le badge compteur dans le header.
- *
- * @param {string|number} total
- */
 function mettreAJourCompteur(total) {
     const compteur = document.getElementById('compteur');
-    if (compteur) {
-        compteur.textContent = total;
+    if (!compteur) {
+        return;
     }
+
+    compteur.textContent = total;
+    compteur.classList.add('panier-badge-pulse');
+    window.setTimeout(function () {
+        compteur.classList.remove('panier-badge-pulse');
+    }, 450);
 }
 
-/**
- * Supprime un article du panier via AJAX.
- * Retire le <tr> correspondant du DOM après confirmation.
- *
- * @param {number} idProduit
- */
 function suppr(idProduit) {
-    if (!confirm('Supprimer cet article du panier ?')) return;
+    if (!confirm('Supprimer cet article du panier ?')) {
+        return;
+    }
 
     axios.postForm('supprimer_article.php', { product_id: idProduit })
         .then(function (response) {
-            // Retirer la ligne du tableau
             const ligne = document.querySelector('.tr-' + idProduit);
-            if (ligne) ligne.remove();
-
-            // Mettre à jour le badge
-            mettreAJourCompteur(response.data);
-
-            // Afficher un message si le panier est vide
-            if (parseInt(response.data, 10) === 0) {
-                afficherPanierVide();
+            if (ligne) {
+                mettreAJourRecap(ligne);
+                ligne.classList.add('basket-item-removing');
+                window.setTimeout(function () {
+                    ligne.remove();
+                    verifierPanierVide();
+                }, 180);
             }
+
+            mettreAJourCompteur(response.data);
         })
         .catch(function (error) {
             const message = error.response ? error.response.data : 'Une erreur est survenue.';
@@ -43,19 +36,80 @@ function suppr(idProduit) {
         });
 }
 
-/**
- * Affiche un message "panier vide" en remplaçant le tableau.
- */
-function afficherPanierVide() {
-    const section = document.querySelector('.panier-table');
-    const totaux  = document.querySelector('.panier-totaux');
+function formaterPrix(valeur) {
+    return valeur.toLocaleString('fr-BE', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }) + ' EUR';
+}
 
-    if (section) section.remove();
-    if (totaux)  totaux.remove();
+function mettreAJourRecap(ligne) {
+    const totalArticles = document.getElementById('total-articles');
+    const totalHtva = document.getElementById('total-htva');
+    const totalTva = document.getElementById('total-tva');
+    const totalTvac = document.getElementById('total-tvac');
+    const page = document.querySelector('main[data-tva]');
+    const basketCountLabel = document.getElementById('basket-count-label');
+
+    if (!ligne || !totalArticles || !totalHtva || !totalTva || !totalTvac || !page) {
+        return;
+    }
+
+    const quantiteRetiree = parseInt(ligne.dataset.quantite || '0', 10);
+    const totalLigneRetire = parseFloat(ligne.dataset.totalLigne || '0');
+    const tauxTva = parseFloat(page.dataset.tva || '0.21');
+
+    const nouveauxArticles = Math.max(parseInt(totalArticles.textContent || '0', 10) - quantiteRetiree, 0);
+    const nouveauHtva = Math.max(extraireMontant(totalHtva.textContent) - totalLigneRetire, 0);
+    const nouvelleTva = nouveauHtva * tauxTva;
+    const nouveauTvac = nouveauHtva + nouvelleTva;
+
+    totalArticles.textContent = nouveauxArticles;
+    totalHtva.textContent = formaterPrix(nouveauHtva);
+    totalTva.textContent = formaterPrix(nouvelleTva);
+    totalTvac.textContent = formaterPrix(nouveauTvac);
+
+    if (basketCountLabel) {
+        basketCountLabel.textContent = nouveauxArticles + ' article' + (nouveauxArticles > 1 ? 's' : '');
+    }
+}
+
+function extraireMontant(texte) {
+    return parseFloat((texte || '0').replace(/\s/g, '').replace('EUR', '').replace(',', '.')) || 0;
+}
+
+function verifierPanierVide() {
+    const items = document.querySelectorAll('.basket-item');
+    if (items.length > 0) {
+        return;
+    }
+
+    const layout = document.querySelector('.basket-layout');
+    if (layout) {
+        layout.remove();
+    }
 
     const main = document.querySelector('main');
-    const msg  = document.createElement('p');
-    msg.className   = 'message message--erreur';
-    msg.textContent = 'Votre panier est vide.';
-    main.appendChild(msg);
+    if (!main) {
+        return;
+    }
+
+    const empty = document.createElement('section');
+    empty.className = 'basket-empty-state';
+
+    const title = document.createElement('h3');
+    title.textContent = 'Votre panier est vide';
+
+    const text = document.createElement('p');
+    text.textContent = 'Explorez la collection pour ajouter un parfum a votre selection.';
+
+    const link = document.createElement('a');
+    link.href = 'produits.php';
+    link.className = 'landing-btn landing-btn-primary';
+    link.textContent = 'Voir les produits';
+
+    empty.appendChild(title);
+    empty.appendChild(text);
+    empty.appendChild(link);
+    main.appendChild(empty);
 }
